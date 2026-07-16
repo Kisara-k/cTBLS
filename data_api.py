@@ -18,9 +18,8 @@ class HybridDialogueDataset():
     mode: 'train' 'validate' 'test'
     """
 
-    def __init__(self):
+    def __init__(self, all_data_file_path='experimental_data.json'):
         """ loads the data """
-        all_data_file_path = 'experimental_data.json'
         with open(all_data_file_path, 'r') as f:
             self.all_data = json.load(f)
 

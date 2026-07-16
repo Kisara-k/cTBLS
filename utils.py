@@ -2,7 +2,7 @@ from data_api import HybridDialogueDataset, get_hash
 import json
 import tqdm, heapq
 import pandas as pd
-from transformers import AutoModelForCausalLM, AutoTokenizer, RobertaTokenizer
+from transformers import RobertaTokenizer
 from torch.utils.data import DataLoader, Dataset
 import torch 
 import re, os, pickle
@@ -10,19 +10,6 @@ import numpy as np
 import random
 import pdb
 from models import PQNTriplet_Distributed
-
-from transformers import (
-    MODEL_WITH_LM_HEAD_MAPPING,
-    WEIGHTS_NAME,
-    AdamW,
-    AutoConfig,
-    AutoModelWithLMHead,
-    AutoTokenizer,
-    PreTrainedModel,
-    PreTrainedTokenizer,
-    get_linear_schedule_with_warmup,
-)
-
 
 # Creates data sample triplets 
 def create_triplet_samples(dataset, mode='train'):
@@ -37,6 +24,12 @@ def create_triplet_samples(dataset, mode='train'):
     history = [] # dialogue history
     correct_reference_all = [] # Correct references
     incorrect_reference_all = [] # Incorrect references
+    conversation_ids = []
+    dialogue_contexts = []
+    questions = []
+    responses = []
+    correct_reference_ids = []
+    incorrect_reference_ids = []
 
     for key, turn_keys in tqdm.tqdm(conversations.items()):
         dialogue_history = ''
@@ -57,7 +50,7 @@ def create_triplet_samples(dataset, mode='train'):
                 correct_reference = turn['correct_next_cands_ids'][0]
                 correct_reference_linearized = candidates[correct_reference]['linearized_input']
                 
-                incorrect_references = turn['possible_next_cands_ids']
+                incorrect_references = list(turn['possible_next_cands_ids'])
                 # print(incorrect_references)
                 if correct_reference in incorrect_references:
                     incorrect_references.remove(correct_reference)
@@ -70,6 +63,12 @@ def create_triplet_samples(dataset, mode='train'):
                     history.append(H)
                     correct_reference_all.append(correct_reference_linearized)
                     incorrect_reference_all.append(incorrect_reference_linearized)
+                    conversation_ids.append(key)
+                    dialogue_contexts.append(dialogue_history.strip())
+                    questions.append(query)
+                    responses.append(turn['long_response_to_query'])
+                    correct_reference_ids.append(correct_reference)
+                    incorrect_reference_ids.append(incorrect_reference)
 
                 response = turn['long_response_to_query']
                 dialogue_history = H + response + ' ' 
@@ -77,6 +76,12 @@ def create_triplet_samples(dataset, mode='train'):
     data_points['history'] = history
     data_points['correct_reference'] = correct_reference_all
     data_points['incorrect_reference'] = incorrect_reference_all
+    data_points['conversation_id'] = conversation_ids
+    data_points['dialogue_context'] = dialogue_contexts
+    data_points['question'] = questions
+    data_points['responses'] = responses
+    data_points['correct_reference_id'] = correct_reference_ids
+    data_points['incorrect_reference_id'] = incorrect_reference_ids
 
     return data_points
 
@@ -299,7 +304,7 @@ def create_triplet_samples_neg_combined(dataset, mode='train'):
                     correct_reference_linearized = correct_reference_linearized + ' ' + row_string
 
 
-                incorrect_references = turn['possible_next_cands_ids']
+                incorrect_references = list(turn['possible_next_cands_ids'])
                 # print(incorrect_references)
                 if correct_reference in incorrect_references:
                     incorrect_references.remove(correct_reference)
@@ -850,7 +855,7 @@ def get_table_cells_from_first_turn(dataset, tokenizer, mode='train'):
                 correct_reference = turn['correct_next_cands_ids'][0]
                 correct_reference_linearized = candidates[correct_reference]['linearized_input']
                 references.append(correct_reference_linearized)
-                incorrect_references = turn['possible_next_cands_ids']
+                incorrect_references = list(turn['possible_next_cands_ids'])
                 # print(incorrect_references)
                 if correct_reference in incorrect_references:
                     incorrect_references.remove(correct_reference)
